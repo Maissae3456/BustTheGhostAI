@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bust the Ghost!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: linear-gradient(rgba(159, 25, 226, 0.2), rgba(50, 0, 100, 0.8)), url("/static/background-image.jpg");
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            padding: 0;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #upper-contianer {
+            display: flex;
+        }
+        #bottom-container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+        }
+
+        #grid-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #grid {
+            display: grid;
+            gap: 5px;
+            margin: 20px 0;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: #ddd;
+            border: 1px solid #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .cell:hover {
+            background-color: #bbb;
+        }
+
+        #status {
+            margin: 20px;
+            text-align: left;
+        }
+
+        #hint-container {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+            background-color: orange;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        .btn:hover {
+            background-color: orangered;
+        }
+
+        #sidebar {
+            margin: 20px 0;
+            width: 300px;
+            height: 450px;
+            background-color: rgba(265, 265, 265, 0.5);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            top: 50%;
+            color: rgb(51, 0, 73);
+        }
+
+        .gametitle{
+            color: rgb(255, 123, 0);
+        }
+    </style>
+</head>
+<body>
+    <audio id="backgroundMusic" loop autoplay>
+        <source src="/static/background-music.mp3" type="audio/mpeg">
+    </audio>
+    
+    <div class="upper-container">
+        <h1 class="gametitle" contenteditable="true">Bust the Ghost !</h1>
+    </div>
+    <div id="bottom-container">
+        <!-- Left Side: Game Grid -->
+        <div id="grid-container">
+
+            <div id="grid" style="grid-template-columns: repeat({{ grid_cols }}, 1fr); grid-template-rows: repeat({{ grid_rows }}, 1fr);">
+                {% for row in range(grid_rows) %}
+                    {% for col in range(grid_cols) %}
+                        <div class="cell" data-row="{{ row }}" data-col="{{ col }}"></div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+
+            <div id="hint-container">
+                <p><strong>Hint:</strong> <span id="hint">No hints yet!</span></p>
+            </div>
+
+            <button class="btn" id="bustButton">Bust the Ghost</button>
+        </div>
+
+        <!-- Right Side: Sidebar -->
+        <div id="sidebar">
+            <div id="status">
+                <p>Score: <span id="score">{{ initial_score }}</span></p>
+                <p>Bust Attempts Left: <span id="bustAttempts">{{ bust_attempts }}</span></p>
+            </div>
+
+            <button class="btn" id="toggleProbabilities">View Probabilities</button>
+            <button class="btn" id="resetButton">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        const grid = document.getElementById('grid');
+        const scoreElement = document.getElementById('score');
+        const bustAttemptsElement = document.getElementById('bustAttempts');
+        const bustButton = document.getElementById('bustButton');
+        const hintElement = document.getElementById('hint');
+        const toggleProbabilitiesButton = document.getElementById('toggleProbabilities');
+
+        let selectedCell = null;
+
+        grid.addEventListener('click', (e) => {
+        const cell = e.target;
+        if (!cell.classList.contains('cell')) return;
+
+        const row = cell.getAttribute('data-row');
+        const col = cell.getAttribute('data-col');
+
+        // Update selected cell globally
+        selectedCell = { x: parseInt(row), y: parseInt(col) };
+        console.log('Selected cell:', selectedCell); // Debugging purpose
+
+        fetch('/get_direction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x: parseInt(row), y: parseInt(col) })
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                // Update the cell color
+                cell.style.backgroundColor = data.color;
+
+                // Show the hint dynamically
+                hintElement.textContent = `The ghost is to the ${data.direction}!`;
+                scoreElement.textContent = data.score;
+
+                if (data.game_over) {
+                showMessage ('Game Over ! You are out of moves :(', '/static/lose.mp3');
+                setTimeout(() => location.reload(), 5000); // Reset game after 5 seconds
+                }
+
+                // Fetch and update probabilities if "View Probabilities" is active
+                if (showProbabilities) {
+                    fetch('/get_probabilities', { method: 'GET' })
+                        .then((res) => res.json())
+                        .then((probabilities) => {
+                            const cells = document.querySelectorAll('.cell');
+                            cells.forEach((cell) => {
+                                const row = parseInt(cell.getAttribute('data-row'));
+                                const col = parseInt(cell.getAttribute('data-col'));
+                                const probability = probabilities[row][col];
+                                cell.textContent = `${probability.toFixed(2)}`; // Display as percentage
+                            });
+                        });
+                }
+            });
+});
+
+
+
+
+        bustButton.addEventListener('click', () => {
+        if (!selectedCell) {
+            hintElement.textContent = 'Select a cell before attempting to bust!';
+            return;
+        }
+
+        fetch('/attempt_bust', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(selectedCell)
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                const audio = new Audio();
+                if (data.success) {
+                    // Play win sound
+                    showMessage('Congratulations! You caught the ghost!', '/static/win.mp3');
+                } else if (data.game_over) {
+                    // Play lose sound
+                    showMessage('Game Over! The ghost escaped', '/static/lose.mp3');
+                }
+
+                if (data.game_over) {
+                    // Reset game after 5 seconds
+                    setTimeout(() => location.reload(), 5000);
+                }
+
+                hintElement.textContent = data.message;
+                bustAttemptsElement.textContent = data.bust_attempts_left;
+            });
+    });
+
+
+    toggleProbabilitiesButton.addEventListener('click', () => {
+    fetch('/toggle_probabilities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    })
+        .then((res) => res.json())
+        .then((data) => {
+            showProbabilities = data.show_probabilities; // Update state
+            toggleProbabilitiesButton.textContent = showProbabilities ? 'Hide Probabilities' : 'View Probabilities';
+
+            if (showProbabilities) {
+                // Fetch and display probabilities
+                fetch('/get_probabilities', { method: 'GET' })
+                    .then((res) => res.json())
+                    .then((probabilities) => {
+                        const cells = document.querySelectorAll('.cell');
+                        cells.forEach((cell) => {
+                            const row = parseInt(cell.getAttribute('data-row'));
+                            const col = parseInt(cell.getAttribute('data-col'));
+                            const probability = probabilities[row][col];
+                            cell.textContent = `${probability.toFixed(2)}`; // Display as percentage
+                        });
+                    });
+            } else {
+                // Clear probabilities from the grid
+                const cells = document.querySelectorAll('.cell');
+                cells.forEach((cell) => {
+                    cell.textContent = ''; // Clear text
+                });
+            }
+        });
+});
+
+
+
+resetButton.addEventListener('click', () => {
+    fetch('/reset_game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then((res) => res.json())
+        .then((data) => {
+            scoreElement.textContent = data.score; // Update the score in the UI
+            bustAttemptsElement.textContent = data.bust_attempts_left; // Update the bust attempts
+            location.reload(); // Refresh the grid and reset the game
+        });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const backgroundMusic = document.getElementById('backgroundMusic');
+    backgroundMusic.volume = 0.3;
+    document.body.addEventListener('click', () => {
+        if (backgroundMusic.paused) {
+            backgroundMusic.play();
+        }
+    }, { once: true }); // Ensure it only plays on the first interaction
+});
+
+
+//This is a function to display a customized popup
+//-----------------------------------------------------------
+function showMessage(message, soundSrc, duration = 5000) {
+        // Play the sound
+        const audio = new Audio(soundSrc);
+        audio.play();
+
+        // Create a custom popup
+        const messageContainer = document.createElement('div');
+        messageContainer.style.position = 'fixed';
+        messageContainer.style.top = '50%';
+        messageContainer.style.left = '50%';
+        messageContainer.style.transform = 'translate(-50%, -50%)';
+        messageContainer.style.backgroundColor = 'darkviolet' ;
+        messageContainer.style.color = 'white';
+        messageContainer.style.padding = '20px';
+        messageContainer.style.borderRadius = '10px';
+        messageContainer.style.textAlign = 'center';
+        messageContainer.style.zIndex = '1000';
+        messageContainer.innerText = message;
+
+        document.body.appendChild(messageContainer);
+
+        // Remove the popup after the specified duration
+        setTimeout(() => {
+            document.body.removeChild(messageContainer);
+        }, duration);
+    }
+//---------------------------------------------------------------
+    </script>
+</body>
+</html>
