@@ -29,4 +29,12 @@ Through this project, I learned:
 
 - How Bayesian inference updates probabilities dynamically with new evidence.
 - The challenges of integrating noisy sensor data into decision-making.
+- 
+## 💼 Relevance to Data Analysis and Finance
+
+Although this project is designed as a game, the core concept is highly relevant to data analysis and finance:
+
+- **Bayesian inference** is widely used in finance for risk modeling, credit scoring, and portfolio predictions to update beliefs based on new, often incomplete or noisy, data.
+- It demonstrates the ability to model uncertainty and make informed decisions – skills essential for financial data analysis roles.
+- This project also showcases strong **Python implementation skills**, structured problem-solving, and the ability to translate theoretical models into interactive tools.
 
