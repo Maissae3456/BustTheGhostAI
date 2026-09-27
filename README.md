@@ -29,7 +29,7 @@ Through this project, I learned:
 
 - How Bayesian inference updates probabilities dynamically with new evidence.
 - The challenges of integrating noisy sensor data into decision-making.
-- 
+  
 ## 💼 Relevance to Data Analysis and Finance
 
 Although this project is designed as a game, the core concept is highly relevant to data analysis and finance:
